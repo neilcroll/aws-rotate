@@ -2,11 +2,11 @@ name: Build and Test
 
 on:
   push:
-    branches: [ main, dev ]
+    branches: [ main, dev, v2 ]
     tags:
       - 'v*'
   pull_request:
-    branches: [ main, dev ]
+    branches: [ main, dev, v2 ]
 
 permissions:
   contents: write
