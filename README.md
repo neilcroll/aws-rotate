@@ -210,6 +210,130 @@ All profiles updated successfully!
 - Does not update AWS CLI config file (`~/.aws/config`), only credentials file
 - MFA not supported for API access (MFA is for console login only)
 
+## Development
+
+### Building Locally
+
+Use the provided Makefile for common development tasks:
+
+```bash
+# Build for current platform
+make build
+
+# Build for all platforms (Linux, macOS, Windows)
+make build-all
+
+# Run tests
+make test
+
+# Run tests with coverage report
+make test-coverage
+
+# Run linters and code quality checks
+make lint
+
+# Format code
+make fmt
+
+# Run all checks (lint + test)
+make check
+
+# Clean build artifacts
+make clean
+
+# Install to system
+make install
+
+# See all available targets
+make help
+```
+
+### Manual Build
+
+```bash
+# For current platform
+go build -o aws-rotate
+
+# For specific platform
+GOOS=linux GOARCH=amd64 go build -o aws-rotate-linux-amd64
+GOOS=darwin GOARCH=arm64 go build -o aws-rotate-darwin-arm64
+GOOS=windows GOARCH=amd64 go build -o aws-rotate.exe
+```
+
+### Running Tests
+
+```bash
+# Run all tests
+go test -v ./...
+
+# Run tests with coverage
+go test -v -race -coverprofile=coverage.out ./...
+go tool cover -html=coverage.out
+```
+
+### Code Quality
+
+The project uses several tools to maintain code quality:
+
+- **golangci-lint**: Comprehensive linter aggregator
+- **go vet**: Go's built-in static analyzer
+- **go fmt**: Code formatter
+- **staticcheck**: Advanced Go linter
+
+Install golangci-lint:
+```bash
+curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
+```
+
+### CI/CD
+
+The project uses GitHub Actions for continuous integration and deployment:
+
+#### Build and Test Workflow
+- Triggers on push to main branches and pull requests
+- Runs tests with race detection and coverage
+- Builds binaries for:
+  - Linux (AMD64, ARM64)
+  - macOS (Intel, Apple Silicon)
+  - Windows (AMD64)
+- Uploads build artifacts
+- Creates GitHub releases on version tags
+
+#### Lint Workflow
+- Runs golangci-lint with comprehensive rule set
+- Checks code formatting with go fmt
+- Ensures code quality standards
+
+### Creating a Release
+
+1. Update version in code if needed
+2. Create and push a version tag:
+   ```bash
+   git tag -a v0.3.0 -m "Release v0.3.0"
+   git push origin v0.3.0
+   ```
+3. GitHub Actions automatically:
+   - Builds binaries for all platforms
+   - Creates compressed archives
+   - Generates changelog
+   - Creates GitHub release with binaries attached
+
+### Pre-commit Checklist
+
+Before committing code, ensure:
+```bash
+# Format code
+make fmt
+
+# Run all checks
+make check
+
+# Build for all platforms
+make build-all
+```
+
+All checks should pass before pushing to avoid CI failures.
+
 ## Contributing
 
 Contributions welcome! If you have ideas, suggestions, or bug reports:

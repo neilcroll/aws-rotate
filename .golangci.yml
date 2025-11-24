@@ -1,0 +1,68 @@
+run:
+  timeout: 5m
+  tests: true
+  modules-download-mode: readonly
+
+linters:
+  enable:
+    - errcheck       # Check for unchecked errors
+    - gosimple       # Simplify code
+    - govet          # Reports suspicious constructs
+    - ineffassign    # Detects ineffectual assignments
+    - staticcheck    # Advanced Go linter
+    - unused         # Checks for unused code
+    - gofmt          # Checks if code is formatted
+    - goimports      # Checks import order
+    - misspell       # Finds commonly misspelled words
+    - unconvert      # Remove unnecessary type conversions
+    - goconst        # Finds repeated strings that could be constants
+    - gocyclo        # Computes cyclomatic complexity
+    - dupl           # Code clone detection
+    - revive         # Replacement for golint
+    - bodyclose      # Checks HTTP response bodies are closed
+    - exportloopref  # Checks for pointers to loop variables
+    - nilerr         # Finds code that returns nil even when error is not nil
+    - noctx          # Finds sending HTTP requests without context.Context
+    - gosec          # Inspects for security problems
+
+linters-settings:
+  errcheck:
+    check-blank: true
+    check-type-assertions: true
+  
+  gocyclo:
+    min-complexity: 15
+  
+  dupl:
+    threshold: 100
+  
+  goconst:
+    min-len: 3
+    min-occurrences: 3
+  
+  misspell:
+    locale: US
+  
+  revive:
+    rules:
+      - name: exported
+        disabled: false
+      - name: unexported-return
+        disabled: false
+      - name: var-naming
+        disabled: false
+
+issues:
+  exclude-use-default: false
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Exclude some linters from running on tests files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - errcheck
+        - dupl
+        - gosec
+

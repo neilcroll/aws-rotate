@@ -192,6 +192,8 @@ cdk.context.json
 
 # Testing
 coverage/
+coverage.out
+coverage.html
 .nyc_output/
 *.lcov
 .grunt
