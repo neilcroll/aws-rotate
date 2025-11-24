@@ -149,9 +149,7 @@ func selectProfiles(profiles []Profile) []Profile {
 	const allExceptDefault = "All except Default\n Available Profiles:" // The newline here is just a kludge to separate the two sections
 
 	options := []string{all, allExceptDefault}
-	profileNames := []string{}
 	for _, profile := range profiles {
-		profileNames = append(profileNames, profile.Name)
 		options = append(options, profile.Name)
 	}
 
