@@ -55,19 +55,23 @@ const version = "v0.2.0"
 const boldStart = "\033[1m"
 const boldEnd = "\033[0m"
 
+type updateMode int
+
+const (
+	modeConcurrent updateMode = iota
+	modeSequential
+)
+
 func main() {
-	concurrent := flag.Bool("concurrent", true, "Run updates concurrently")
+	concurrent := flag.Bool("concurrent", false, "Run updates concurrently")
 	sequential := flag.Bool("sequential", false, "Run updates sequentially")
 
-	flag.BoolVar(concurrent, "c", true, "Run updates concurrently")
+	flag.BoolVar(concurrent, "c", false, "Run updates concurrently")
 	flag.BoolVar(sequential, "s", false, "Run updates sequentially")
 
 	flag.Parse()
 
-	// If both flags are set, default to concurrent
-	if *concurrent && *sequential {
-		*sequential = false
-	}
+	mode := determineUpdateMode(*concurrent, *sequential)
 
 	displayWelcomeMessage()
 
@@ -81,14 +85,38 @@ func main() {
 		username := getUsername()
 		newPassword := getPassword()
 		backupCredentialsFile()
-		if *concurrent {
-			updateProfilesSequential(selectedProfiles, username, newPassword)
-		} else {
-			updateProfilesConcurrent(selectedProfiles, username, newPassword)
-		}
+		runProfileUpdates(mode, selectedProfiles, username, newPassword, updateProfilesConcurrent, updateProfilesSequential)
 		fmt.Println("AWS credentials updated successfully.")
 		break
 	}
+}
+
+func determineUpdateMode(concurrentFlag, sequentialFlag bool) updateMode {
+	switch {
+	case concurrentFlag && sequentialFlag:
+		return modeConcurrent
+	case sequentialFlag:
+		return modeSequential
+	case concurrentFlag:
+		return modeConcurrent
+	default:
+		return modeConcurrent
+	}
+}
+
+func runProfileUpdates(
+	mode updateMode,
+	profiles []Profile,
+	username string,
+	newPassword string,
+	concurrentFn func([]Profile, string, string),
+	sequentialFn func([]Profile, string, string),
+) {
+	if mode == modeSequential {
+		sequentialFn(profiles, username, newPassword)
+		return
+	}
+	concurrentFn(profiles, username, newPassword)
 }
 
 /**
