@@ -25,10 +25,13 @@ This tool automates the tedious process of rotating IAM user credentials across 
 - **Validation**: Verifies new credentials work before deleting old keys
 - **Clear Status Reporting**: Detailed feedback on each profile's update status
 - **Rollback Support**: Backup file allows manual restoration if needed
+- **Desktop GUI (Wails + React)**: Visual profile table with selection checkboxes, an AWS China toggle per profile, inline password confirmation, and status badges for each rotation attempt
 
 ## Prerequisites
 
-- **Go 1.21 or higher** - [Download](https://golang.org/dl/)
+- **Go 1.22 or higher** - [Download](https://golang.org/dl/)
+- **Node.js 20+** - Needed for the React frontend
+- **Wails CLI** - `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
 - **AWS CLI** - [Install Guide](https://aws.amazon.com/cli/)
 - **Existing AWS profiles** configured in `~/.aws/credentials`
 - **IAM Permissions**: Your IAM user must have:
@@ -65,28 +68,40 @@ Move-Item aws-rotate.exe C:\Windows\System32\
 
 ## Usage
 
-### Basic Usage
+### Desktop GUI (Wails + React)
+
+Issues Version 2 introduces a desktop experience that mirrors the CLI workflow but adds a profile table, AWS China toggles, and inline validation.
 
 ```bash
-# Linux/macOS
-./aws-rotate
+# One-time setup
+npm install --prefix frontend
 
-# Windows
-aws-rotate.exe
+# For hot reload during development
+/home/ubuntu/go/bin/wails dev   # or wails dev if it's already on your PATH
+
+# To run the packaged app without the dev server
+npm run build --prefix frontend
+go run .
 ```
 
-### Command-Line Flags
+`go run .` (or `wails build`) produces a desktop binary that ships the compiled React assets via `go:embed`.
 
-- `-c` or `--concurrent` (default): Update profiles concurrently for speed
-- `-s` or `--sequential`: Update profiles one at a time (slower, but safer if you hit API rate limits)
+### Command-Line Workflow
+
+The original terminal workflow still exists under `cmd/cli`.
 
 ```bash
-# Concurrent mode (default)
-./aws-rotate -c
+# Default concurrent mode
+go run ./cmd/cli
 
-# Sequential mode
-./aws-rotate -s
+# Sequential mode (safer if you regularly hit rate limits)
+go run ./cmd/cli -s
 ```
+
+Flags:
+
+- `-c` / `--concurrent` (default): Update profiles concurrently
+- `-s` / `--sequential`: Update profiles one at a time
 
 ## How It Works
 
