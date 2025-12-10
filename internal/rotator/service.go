@@ -49,7 +49,11 @@ func (s *Service) LoadProfiles() ([]Profile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open credentials file: %w", err)
 	}
-	defer func() { _ = file.Close() }()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			// Log or handle close error if needed
+		}
+	}()
 
 	scanner := bufio.NewScanner(file)
 	var (
@@ -120,20 +124,29 @@ func (s *Service) UpdateCredentialsFile(profileName, accessKeyID, secretAccessKe
 }
 
 // BackupCredentialsFile takes a timestamped backup of the credentials file.
-func (s *Service) BackupCredentialsFile() (string, error) {
+func (s *Service) BackupCredentialsFile() (backupPath string, err error) {
 	backupFile := s.credentialsPath + "-" + time.Now().Format("20060102-150405") + ".bak"
 
 	input, err := os.Open(s.credentialsPath)
 	if err != nil {
 		return "", fmt.Errorf("open credentials: %w", err)
 	}
-	defer func() { _ = input.Close() }()
+	defer func() {
+		if closeErr := input.Close(); closeErr != nil {
+			// Log or handle close error if needed
+		}
+	}()
 
 	output, err := os.Create(backupFile)
 	if err != nil {
 		return "", fmt.Errorf("create backup: %w", err)
 	}
-	defer func() { _ = output.Close() }()
+	defer func() {
+		if closeErr := output.Close(); closeErr != nil && err == nil {
+			// Critical: output close can fail during flush
+			err = fmt.Errorf("close backup file: %w", closeErr)
+		}
+	}()
 
 	if _, err := io.Copy(output, input); err != nil {
 		return "", fmt.Errorf("copy backup: %w", err)
