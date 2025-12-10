@@ -27,7 +27,7 @@ const (
 	propagationMax = 15
 )
 
-// Options fine-tune the rotation behaviour.
+// Options fine-tune the rotation behavior.
 type Options struct {
 	Mode UpdateMode
 }
@@ -183,7 +183,7 @@ func updatePassword(svc *iam.IAM, username, newPassword string) error {
 func buildResult(name string, err error) ProfileResult {
 	if err != nil {
 		message := err.Error()
-		
+
 		// Make common AWS errors more user-friendly
 		if strings.Contains(message, "PasswordPolicyViolation") {
 			message = "Password does not meet AWS password policy requirements (check length, complexity, or password history)"
@@ -198,7 +198,7 @@ func buildResult(name string, err error) ProfileResult {
 		} else if strings.Contains(message, "InvalidClientTokenId") || strings.Contains(message, "SignatureDoesNotMatch") {
 			message = "Invalid or expired AWS credentials. Check that the access keys in ~/.aws/credentials are current"
 		}
-		
+
 		return ProfileResult{
 			Name:    name,
 			Success: false,

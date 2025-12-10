@@ -216,6 +216,17 @@ All profiles updated successfully!
 - Contain uppercase, lowercase, numbers, and symbols
 - Not match previous passwords (if password history is enabled)
 
+### Special Characters in Passwords
+
+**Q**: Are special characters supported in passwords?
+
+**A**: Yes! The tool correctly handles all special characters including:
+- Symbols: `!@#$%^&*()_+-={}[]|\:";'<>?,./`
+- Spaces (including leading/trailing)
+- Unicode characters
+
+Passwords are read securely (masked input) and passed exactly as typed without truncation or modification. No shell escaping is required.
+
 ### Rate Limiting / Throttling
 
 **Problem**: Too many concurrent API calls causing throttling.

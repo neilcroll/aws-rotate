@@ -19,7 +19,7 @@ type Profile struct {
 	IsChina         bool   `json:"isChina"`
 }
 
-// Config configures the Service behaviour.
+// Config configures the Service behavior.
 type Config struct {
 	CredentialsPath string
 }
@@ -33,7 +33,11 @@ type Service struct {
 func NewService(cfg Config) *Service {
 	path := cfg.CredentialsPath
 	if path == "" {
-		homeDir, _ := os.UserHomeDir()
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			// Fall back to current directory if home dir unavailable
+			homeDir = "."
+		}
 		path = filepath.Join(homeDir, ".aws", "credentials")
 	}
 	return &Service{credentialsPath: path}
@@ -45,7 +49,7 @@ func (s *Service) LoadProfiles() ([]Profile, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open credentials file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	var (
@@ -123,13 +127,13 @@ func (s *Service) BackupCredentialsFile() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("open credentials: %w", err)
 	}
-	defer input.Close()
+	defer func() { _ = input.Close() }()
 
 	output, err := os.Create(backupFile)
 	if err != nil {
 		return "", fmt.Errorf("create backup: %w", err)
 	}
-	defer output.Close()
+	defer func() { _ = output.Close() }()
 
 	if _, err := io.Copy(output, input); err != nil {
 		return "", fmt.Errorf("copy backup: %w", err)

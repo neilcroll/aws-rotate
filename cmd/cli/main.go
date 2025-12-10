@@ -14,6 +14,7 @@ import (
 	"aws-rotate/internal/rotator"
 
 	"github.com/AlecAivazis/survey/v2"
+	"golang.org/x/term"
 )
 
 const version = "v0.2.0"
@@ -54,6 +55,12 @@ func main() {
 
 		username := getUsername()
 		newPassword := getPassword()
+		confirmPassword := getPasswordConfirmation()
+
+		if newPassword != confirmPassword {
+			fmt.Println("Passwords do not match. Please try again.")
+			continue
+		}
 
 		if _, err := service.BackupCredentialsFile(); err != nil {
 			fmt.Println("Failed to backup credentials file:", err)
@@ -159,13 +166,46 @@ func contains(slice []string, item string) bool {
 func getUsername() string {
 	fmt.Println("Enter the username for the AWS accounts:")
 	reader := bufio.NewReader(os.Stdin)
-	username, _ := reader.ReadString('\n')
+	username, err := reader.ReadString('\n')
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error reading username: %v\n", err)
+		os.Exit(1)
+	}
 	return strings.TrimSpace(username)
 }
 
 func getPassword() string {
-	fmt.Println("Enter the new password for the AWS accounts:")
-	reader := bufio.NewReader(os.Stdin)
-	password, _ := reader.ReadString('\n')
-	return strings.TrimSpace(password)
+	fmt.Print("Enter the new password for the AWS accounts: ")
+
+	// Read password without echoing to terminal
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\nError reading password: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println() // Add newline after hidden input
+
+	password := string(passwordBytes)
+	if len(strings.TrimSpace(password)) == 0 {
+		fmt.Fprintf(os.Stderr, "Password cannot be empty\n")
+		os.Exit(1)
+	}
+
+	// Return password exactly as typed - do NOT trim spaces
+	// This preserves all special characters including leading/trailing spaces
+	return password
+}
+
+func getPasswordConfirmation() string {
+	fmt.Print("Confirm the new password: ")
+
+	// Read password without echoing to terminal
+	passwordBytes, err := term.ReadPassword(int(os.Stdin.Fd()))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\nError reading password: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println() // Add newline after hidden input
+
+	return string(passwordBytes)
 }

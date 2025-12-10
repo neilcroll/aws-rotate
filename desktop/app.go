@@ -118,7 +118,7 @@ func (a *App) RotateProfiles(req RotationRequest) ([]rotator.ProfileResult, erro
 		runtime.LogError(a.ctx, err.Error())
 		return nil, err
 	}
-	
+
 	// Results contain per-profile success/failure status
 	// Log summary for debugging
 	successCount := 0
@@ -128,7 +128,7 @@ func (a *App) RotateProfiles(req RotationRequest) ([]rotator.ProfileResult, erro
 		}
 	}
 	runtime.LogInfo(a.ctx, fmt.Sprintf("Rotation complete: %d/%d profiles succeeded", successCount, len(results)))
-	
+
 	return results, nil
 }
 
