@@ -24,7 +24,9 @@ function App() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [mode, setMode] = useState<Mode>('concurrent');
   const [submitting, setSubmitting] = useState(false);
-  const [resultsNote, setResultsNote] = useState<string | null>(null);
+  const [progressMessage, setProgressMessage] = useState<string | null>(null);
+  const [rotationResults, setRotationResults] = useState<rotator.ProfileResult[] | null>(null);
+  const [catastrophicError, setCatastrophicError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +69,16 @@ function App() {
     [profiles]
   );
 
+  const passwordsMatch = useMemo(() => {
+    if (password.length === 0 && confirmPassword.length === 0) {
+      return null; // No indicator when both empty
+    }
+    if (confirmPassword.length === 0) {
+      return null; // No indicator until confirm password is entered
+    }
+    return password === confirmPassword;
+  }, [password, confirmPassword]);
+
   const canSubmit =
     selectedCount > 0 &&
     username.trim().length > 0 &&
@@ -86,7 +98,8 @@ function App() {
           : profile
       )
     );
-    setResultsNote(null);
+    setRotationResults(null);
+    setCatastrophicError(null);
   };
 
   const mapResults = (results: rotator.ProfileResult[]) => {
@@ -111,8 +124,9 @@ function App() {
       return;
     }
     setSubmitting(true);
-    setError(null);
-    setResultsNote(null);
+    setCatastrophicError(null);
+    setRotationResults(null);
+    setProgressMessage('Starting credential rotation...');
 
     const payload = new desktop.RotationRequest({
       profiles: profiles.map(({ name, isChina, checked }) => ({
@@ -125,19 +139,68 @@ function App() {
       mode,
     });
 
+    // Reset all selected profile statuses to pending
+    setProfiles((prev) =>
+      prev.map((profile) =>
+        profile.checked ? { ...profile, status: 'pending' as const, message: 'Processing...' } : profile
+      )
+    );
+
     try {
+      setProgressMessage(`Rotating credentials for ${selectedCount} profile(s)...`);
       const results = await RotateProfiles(payload);
-      mapResults(results);
-      const hasFailures = results.some((result) => !result.success);
-      setResultsNote(
-        hasFailures
-          ? 'Rotation finished, but at least one profile needs attention.'
-          : 'Rotation finished successfully.'
+      
+      setProgressMessage(null);
+      
+      // Process results - update both table and results panel
+      if (results && results.length > 0) {
+        mapResults(results);
+        setRotationResults(results);
+      } else {
+        // Unexpected: no results returned
+        setCatastrophicError('No results returned from rotation operation. This should not happen - please check the application logs.');
+      }
+    } catch (err: unknown) {
+      // Catastrophic failure before processing could start (backup failed, profiles not found, etc.)
+      setProgressMessage(null);
+      
+      let errorMessage = 'A critical error occurred before rotation could begin.';
+      const errorDetails: string[] = [];
+      
+      if (err instanceof Error) {
+        errorMessage = err.message || errorMessage;
+        
+        // Provide helpful context for common pre-processing errors
+        if (errorMessage.includes('backup')) {
+          errorDetails.push('• Check that ~/.aws/credentials exists and is writable');
+          errorDetails.push('• Ensure you have sufficient disk space');
+        } else if (errorMessage.includes('profile') && errorMessage.includes('not found')) {
+          errorDetails.push('• The credentials file may have been modified externally');
+          errorDetails.push('• Try refreshing your browser or restarting the application');
+        } else if (errorMessage.includes('load') && errorMessage.includes('profiles')) {
+          errorDetails.push('• Check that ~/.aws/credentials exists and is readable');
+          errorDetails.push('• Verify the file format is correct');
+        }
+        
+        if (err.stack && import.meta.env.DEV) {
+          errorDetails.push(`\nStack trace:\n${err.stack}`);
+        }
+      } else if (typeof err === 'string') {
+        errorMessage = err;
+      }
+      
+      const fullError = errorDetails.length > 0
+        ? `${errorMessage}\n\n${errorDetails.join('\n')}`
+        : errorMessage;
+      
+      setCatastrophicError(fullError);
+      
+      // Reset pending statuses since processing never started
+      setProfiles((prev) =>
+        prev.map((profile) =>
+          profile.status === 'pending' ? { ...profile, status: 'idle' as const, message: '' } : profile
+        )
       );
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : 'Rotation failed unexpectedly.';
-      setError(message);
     } finally {
       setSubmitting(false);
     }
@@ -146,17 +209,18 @@ function App() {
   return (
     <div className="app-shell">
       <header>
-        <div>
-          <h1>AWS Multi-Account Credentials Rotator</h1>
-          <p>Select the accounts you want to update and confirm the new password.</p>
-        </div>
-        <span className="version-pill">Issues v2</span>
+        <h1>AWS Multi-Account Credentials Rotator</h1>
+        <p>Select the accounts you want to update and confirm the new password.</p>
       </header>
 
       {loading && <div className="panel">Loading profiles…</div>}
-      {!loading && error && <div className="alert alert-danger">{error}</div>}
+      
+      {/* Show errors but don't hide content unless it's a load error */}
+      {!loading && error && profiles.length === 0 && (
+        <div className="alert alert-danger">{error}</div>
+      )}
 
-      {!loading && !error && (
+      {!loading && profiles.length > 0 && (
         <>
           <section className="panel">
             <div className="table-scroll">
@@ -206,11 +270,19 @@ function App() {
                         />
                       </td>
                       <td>
+                        {profile.status === 'pending' && (
+                          <span className="status pending">
+                            <span className="spinner-small"></span>
+                            Processing...
+                          </span>
+                        )}
                         {profile.status === 'success' && (
-                          <span className="status success">Success</span>
+                          <span className="status success">✓ Success</span>
                         )}
                         {profile.status === 'error' && (
-                          <span className="status danger">{profile.message}</span>
+                          <span className="status danger" title={profile.message}>
+                            ✗ {profile.message || 'Failed'}
+                          </span>
                         )}
                       </td>
                     </tr>
@@ -227,18 +299,19 @@ function App() {
           {selectedCount > 0 && (
             <form className="panel" onSubmit={handleRotate}>
               <h2>Rotate selected profiles ({selectedCount})</h2>
-              <div className="form-grid">
-                <label>
+              
+              <div className="form-layout">
+                <label className="form-field">
                   <span>IAM username</span>
                   <input
                     type="text"
                     value={username}
                     onChange={(event) => setUsername(event.target.value)}
-                    placeholder="e.g. neil.croll"
+                    placeholder="e.g. user.name"
                   />
                 </label>
 
-                <label>
+                <label className="form-field">
                   <span>Execution mode</span>
                   <select value={mode} onChange={(event) => setMode(event.target.value as Mode)}>
                     <option value="concurrent">Concurrent (faster)</option>
@@ -246,37 +319,128 @@ function App() {
                   </select>
                 </label>
 
-                <label>
+                <label className="form-field password-field">
                   <span>New password</span>
-                  <input
-                    type="password"
-                    value={password}
-                    onChange={(event) => setPassword(event.target.value)}
-                  />
+                  <div className="password-input-wrapper">
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(event) => setPassword(event.target.value)}
+                    />
+                    {passwordsMatch !== null && (
+                      <span className={`password-indicator ${passwordsMatch ? 'match' : 'no-match'}`}>
+                        {passwordsMatch ? '✓' : '✗'}
+                      </span>
+                    )}
+                  </div>
                 </label>
 
-                <label>
+                <label className="form-field password-field">
                   <span>Confirm password</span>
-                  <input
-                    type="password"
-                    value={confirmPassword}
-                    onChange={(event) => setConfirmPassword(event.target.value)}
-                  />
+                  <div className="password-input-wrapper">
+                    <input
+                      type="password"
+                      value={confirmPassword}
+                      onChange={(event) => setConfirmPassword(event.target.value)}
+                    />
+                    {passwordsMatch !== null && (
+                      <span className={`password-indicator ${passwordsMatch ? 'match' : 'no-match'}`}>
+                        {passwordsMatch ? '✓' : '✗'}
+                      </span>
+                    )}
+                  </div>
                 </label>
               </div>
+
+              {progressMessage && (
+                <div className="progress-message">
+                  <span className="spinner"></span>
+                  {progressMessage}
+                </div>
+              )}
 
               <div className="form-actions">
                 <button type="submit" disabled={!canSubmit}>
                   {submitting ? 'Rotating…' : 'Rotate credentials'}
                 </button>
-                {!canSubmit && (
+                {!canSubmit && !submitting && (
                   <span className="hint">
                     Enter the username, matching passwords, and keep at least one profile ticked.
                   </span>
                 )}
               </div>
-              {resultsNote && <div className="alert alert-info">{resultsNote}</div>}
             </form>
+          )}
+
+          {/* Show catastrophic errors or results in a dedicated component below the form */}
+          {(catastrophicError || (rotationResults && rotationResults.length > 0)) && (
+            <section className="panel results-panel">
+              <h2>Rotation Results</h2>
+              
+              {catastrophicError && (
+                <div className="catastrophic-error">
+                  <div className="error-header">
+                    <span className="error-icon">⚠️</span>
+                    <span className="error-title">Critical Error</span>
+                  </div>
+                  <div className="error-message">{catastrophicError}</div>
+                </div>
+              )}
+
+              {rotationResults && rotationResults.length > 0 && (
+                <>
+                  <div className="results-summary">
+                <div className="summary-stats">
+                  <div className="stat-item success">
+                    <span className="stat-icon">✓</span>
+                    <div className="stat-content">
+                      <div className="stat-number">
+                        {rotationResults.filter((r) => r.success).length}
+                      </div>
+                      <div className="stat-label">Successful</div>
+                    </div>
+                  </div>
+                  <div className="stat-item failed">
+                    <span className="stat-icon">✗</span>
+                    <div className="stat-content">
+                      <div className="stat-number">
+                        {rotationResults.filter((r) => !r.success).length}
+                      </div>
+                      <div className="stat-label">Failed</div>
+                    </div>
+                  </div>
+                  <div className="stat-item total">
+                    <span className="stat-icon">≡</span>
+                    <div className="stat-content">
+                      <div className="stat-number">{rotationResults.length}</div>
+                      <div className="stat-label">Total</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="results-details">
+                {rotationResults.map((result) => (
+                  <div
+                    key={result.name}
+                    className={`result-item ${result.success ? 'result-success' : 'result-error'}`}
+                  >
+                    <div className="result-header">
+                      <span className="result-icon">
+                        {result.success ? '✓' : '✗'}
+                      </span>
+                      <span className="result-name">{result.name}</span>
+                      <span className={`result-badge ${result.success ? 'badge-success' : 'badge-error'}`}>
+                        {result.success ? 'Success' : 'Failed'}
+                      </span>
+                    </div>
+                    <div className="result-message">{result.message}</div>
+                  </div>
+                ))}
+              </div>
+                </>
+              )}
+            </section>
           )}
         </>
       )}

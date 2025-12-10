@@ -45,25 +45,51 @@ This tool automates the tedious process of rotating IAM user credentials across 
 
 ### From Source
 
+#### Desktop GUI (Wails)
+
 ```bash
 git clone https://github.com/neilcroll/aws-rotate.git
 cd aws-rotate
 go mod tidy
-go build
+
+# Install frontend dependencies
+npm install --prefix frontend
+
+# Build the frontend
+npm run build --prefix frontend
+
+# Build the desktop application (requires Wails CLI)
+wails build
 ```
 
-This creates an executable:
-- `aws-rotate` on Linux/macOS
-- `aws-rotate.exe` on Windows
+This creates an executable in `build/bin/`:
+- `build/bin/aws-rotate` on Linux/macOS
+- `build/bin/aws-rotate.exe` on Windows
+
+**Note**: If you don't have Wails CLI installed:
+```bash
+go install github.com/wailsapp/wails/v2/cmd/wails@latest
+```
+
+#### CLI Only
+
+For the command-line version only (no GUI):
+```bash
+cd cmd/cli
+go build -o aws-rotate-cli
+```
 
 ### Optional: Install Globally
 
 ```bash
-# Linux/macOS
-sudo mv aws-rotate /usr/local/bin/
+# Linux/macOS (Desktop GUI)
+sudo cp build/bin/aws-rotate /usr/local/bin/
+
+# Linux/macOS (CLI only)
+sudo cp cmd/cli/aws-rotate-cli /usr/local/bin/aws-rotate
 
 # Windows (PowerShell as Administrator)
-Move-Item aws-rotate.exe C:\Windows\System32\
+Move-Item build\bin\aws-rotate.exe C:\Windows\System32\
 ```
 
 ## Usage
@@ -73,18 +99,20 @@ Move-Item aws-rotate.exe C:\Windows\System32\
 Issues Version 2 introduces a desktop experience that mirrors the CLI workflow but adds a profile table, AWS China toggles, and inline validation.
 
 ```bash
-# One-time setup
-npm install --prefix frontend
+# For development with hot reload
+wails dev
 
-# For hot reload during development
-/home/ubuntu/go/bin/wails dev   # or wails dev if it's already on your PATH
-
-# To run the packaged app without the dev server
+# To build and run the packaged app
 npm run build --prefix frontend
-go run .
+wails build
+./build/bin/aws-rotate
 ```
 
-`go run .` (or `wails build`) produces a desktop binary that ships the compiled React assets via `go:embed`.
+**Development vs Production:**
+- `wails dev` starts the app with hot-reload (frontend changes update instantly)
+- `wails build` creates a production binary in `build/bin/` with embedded React assets
+
+**WSL2 Users**: You need an X server (VcXsrv, X410, or WSLg) to display the GUI window.
 
 ### Command-Line Workflow
 
@@ -229,10 +257,27 @@ All profiles updated successfully!
 
 ### Building Locally
 
-Use the provided Makefile for common development tasks:
+#### Desktop GUI (Wails)
 
 ```bash
-# Build for current platform
+# Development build with hot reload
+wails dev
+
+# Production build for current platform
+wails build
+
+# Production build for specific platforms
+wails build -platform linux/amd64
+wails build -platform darwin/arm64
+wails build -platform windows/amd64
+```
+
+#### CLI Only
+
+Use the provided Makefile for the CLI-only version:
+
+```bash
+# Build CLI for current platform
 make build
 
 # Build for all platforms (Linux, macOS, Windows)
@@ -256,18 +301,17 @@ make check
 # Clean build artifacts
 make clean
 
-# Install to system
-make install
-
 # See all available targets
 make help
 ```
 
-### Manual Build
+#### Manual CLI Build
 
 ```bash
+cd cmd/cli
+
 # For current platform
-go build -o aws-rotate
+go build -o aws-rotate-cli
 
 # For specific platform
 GOOS=linux GOARCH=amd64 go build -o aws-rotate-linux-amd64

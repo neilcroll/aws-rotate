@@ -479,6 +479,13 @@ site/
 # Project Specific
 # ============================================================================
 
+# AWS Rotate build artifacts
+aws-rotate
+aws-rotate-cli
+cmd/cli/aws-rotate-cli
+frontend/dist/
+frontend/wailsjs/
+
 # Test reports
 TEST*.xml
 test-results/

@@ -74,12 +74,12 @@ func (a *App) ListProfiles() ([]ProfileSummary, error) {
 // RotateProfiles executes the rotation workflow for the selected profiles.
 func (a *App) RotateProfiles(req RotationRequest) ([]rotator.ProfileResult, error) {
 	if len(req.Profiles) == 0 {
-		return nil, errors.New("no profiles selected")
+		return nil, errors.New("no profiles were selected for rotation")
 	}
 
 	allProfiles, err := a.service.LoadProfiles()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to load AWS profiles from ~/.aws/credentials: %w", err)
 	}
 
 	profileMap := make(map[string]rotator.Profile, len(allProfiles))
@@ -94,18 +94,18 @@ func (a *App) RotateProfiles(req RotationRequest) ([]rotator.ProfileResult, erro
 		}
 		profile, ok := profileMap[selection.Name]
 		if !ok {
-			return nil, fmt.Errorf("profile %s not found", selection.Name)
+			return nil, fmt.Errorf("selected profile '%s' was not found in ~/.aws/credentials (file may have been modified)", selection.Name)
 		}
 		profile.IsChina = selection.IsChina
 		selected = append(selected, profile)
 	}
 
 	if len(selected) == 0 {
-		return nil, errors.New("no profiles selected")
+		return nil, errors.New("no profiles were selected for rotation")
 	}
 
 	if _, err := a.service.BackupCredentialsFile(); err != nil {
-		return nil, fmt.Errorf("backup credentials: %w", err)
+		return nil, fmt.Errorf("failed to create backup of ~/.aws/credentials: %w (check file permissions and disk space)", err)
 	}
 
 	mode := parseMode(req.Mode)
@@ -114,9 +114,22 @@ func (a *App) RotateProfiles(req RotationRequest) ([]rotator.ProfileResult, erro
 		Mode: mode,
 	})
 	if err != nil {
+		// Log catastrophic errors
 		runtime.LogError(a.ctx, err.Error())
+		return nil, err
 	}
-	return results, err
+	
+	// Results contain per-profile success/failure status
+	// Log summary for debugging
+	successCount := 0
+	for _, result := range results {
+		if result.Success {
+			successCount++
+		}
+	}
+	runtime.LogInfo(a.ctx, fmt.Sprintf("Rotation complete: %d/%d profiles succeeded", successCount, len(results)))
+	
+	return results, nil
 }
 
 func parseMode(mode string) rotator.UpdateMode {

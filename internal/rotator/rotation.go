@@ -83,14 +83,10 @@ func (s *Service) RotateProfiles(profiles []Profile, username, newPassword strin
 		}
 	}
 
-	var firstErr error
-	for _, result := range results {
-		if !result.Success {
-			firstErr = errors.New("one or more profiles failed")
-			break
-		}
-	}
-	return results, firstErr
+	// Always return results with no error when processing completes.
+	// Individual profile success/failure is indicated in the results array.
+	// Only return an error for catastrophic failures that prevent any processing.
+	return results, nil
 }
 
 func (s *Service) rotateProfile(profile Profile, username, newPassword string) error {
@@ -186,15 +182,32 @@ func updatePassword(svc *iam.IAM, username, newPassword string) error {
 
 func buildResult(name string, err error) ProfileResult {
 	if err != nil {
+		message := err.Error()
+		
+		// Make common AWS errors more user-friendly
+		if strings.Contains(message, "PasswordPolicyViolation") {
+			message = "Password does not meet AWS password policy requirements (check length, complexity, or password history)"
+		} else if strings.Contains(message, "EntityTemporarilyUnmodifiable") || strings.Contains(message, "password cannot be changed") {
+			message = "Password was changed too recently. AWS requires a minimum time between password changes (typically 24 hours)"
+		} else if strings.Contains(message, "NoSuchEntity") {
+			message = "IAM user does not exist in this account. Verify the username is correct"
+		} else if strings.Contains(message, "LimitExceeded") && strings.Contains(message, "AccessKeys") {
+			message = "Maximum number of access keys reached (AWS limit: 2 per user). Delete an existing key first"
+		} else if strings.Contains(message, "AccessDenied") {
+			message = "Access denied. The IAM user lacks required permissions (iam:UpdateLoginProfile, iam:CreateAccessKey, iam:DeleteAccessKey)"
+		} else if strings.Contains(message, "InvalidClientTokenId") || strings.Contains(message, "SignatureDoesNotMatch") {
+			message = "Invalid or expired AWS credentials. Check that the access keys in ~/.aws/credentials are current"
+		}
+		
 		return ProfileResult{
 			Name:    name,
 			Success: false,
-			Message: err.Error(),
+			Message: message,
 		}
 	}
 	return ProfileResult{
 		Name:    name,
 		Success: true,
-		Message: "Rotation completed",
+		Message: "Credentials rotated successfully",
 	}
 }
